@@ -3,20 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: NantonFilm API - proxy to external streaming API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: content
+    description: Content browsing endpoints
+  - name: detail
+    description: Detail pages for anime, film, series
+  - name: schedule
+    description: Broadcast schedule
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +29,434 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /home:
+    get:
+      operationId: getHome
+      tags: [content]
+      summary: Get home page data
+      responses:
+        "200":
+          description: Home data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /search:
+    get:
+      operationId: searchContent
+      tags: [content]
+      summary: Search anime, film, series
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /animedonghua:
+    get:
+      operationId: getAnimeDonghua
+      tags: [content]
+      summary: Get anime and donghua list
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Anime/Donghua list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /film:
+    get:
+      operationId: getFilm
+      tags: [content]
+      summary: Get film list
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Film list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /series:
+    get:
+      operationId: getSeries
+      tags: [content]
+      summary: Get series list
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Series list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /tvshow:
+    get:
+      operationId: getTvshow
+      tags: [content]
+      summary: Get TV show list
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: TV Show list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /others:
+    get:
+      operationId: getOthers
+      tags: [content]
+      summary: Get others list
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Others list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /genres:
+    get:
+      operationId: getGenres
+      tags: [content]
+      summary: Get all genres
+      responses:
+        "200":
+          description: Genre list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /genre/{slug}:
+    get:
+      operationId: getGenreDetail
+      tags: [content]
+      summary: Get content by genre
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Genre content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /schedule:
+    get:
+      operationId: getSchedule
+      tags: [schedule]
+      summary: Get broadcast schedule
+      parameters:
+        - name: day
+          in: query
+          schema:
+            type: string
+            enum: [senin, selasa, rabu, kamis, jumat, sabtu, minggu]
+      responses:
+        "200":
+          description: Schedule data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /update:
+    get:
+      operationId: getUpdate
+      tags: [content]
+      summary: Get latest updates
+      responses:
+        "200":
+          description: Latest updates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /latest:
+    get:
+      operationId: getLatest
+      tags: [content]
+      summary: Get latest content
+      responses:
+        "200":
+          description: Latest content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /ongoing:
+    get:
+      operationId: getOngoing
+      tags: [content]
+      summary: Get ongoing anime
+      responses:
+        "200":
+          description: Ongoing anime
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /completed:
+    get:
+      operationId: getCompleted
+      tags: [content]
+      summary: Get completed anime
+      responses:
+        "200":
+          description: Completed anime
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /populer:
+    get:
+      operationId: getPopuler
+      tags: [content]
+      summary: Get popular content
+      responses:
+        "200":
+          description: Popular content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /all-anime:
+    get:
+      operationId: getAllAnime
+      tags: [content]
+      summary: Get all anime (A-Z)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: All anime
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /catalog:
+    get:
+      operationId: getCatalog
+      tags: [content]
+      summary: Get catalog with filters
+      parameters:
+        - name: title
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: order
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Catalog data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /anime/{slug}:
+    get:
+      operationId: getAnimeDetail
+      tags: [detail]
+      summary: Get anime detail by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Anime detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /episode/{slug}:
+    get:
+      operationId: getEpisodeDetail
+      tags: [detail]
+      summary: Get episode detail and streaming
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Episode detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /series/{slug}:
+    get:
+      operationId: getSeriesDetail
+      tags: [detail]
+      summary: Get series detail by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Series detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /film/{slug}:
+    get:
+      operationId: getFilmDetail
+      tags: [detail]
+      summary: Get film detail by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Film detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /server:
+    get:
+      operationId: getServer
+      tags: [detail]
+      summary: Get video server URL
+      parameters:
+        - name: post
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: nume
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Server data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResponse"
+
+  /img:
+    get:
+      operationId: getProxyImage
+      tags: [content]
+      summary: Proxy image to avoid hotlink blocking
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Image data
+
 components:
   schemas:
     HealthStatus:
@@ -33,4 +466,12 @@ components:
           type: string
       required:
         - status
-
+    ProxyResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        data:
+          {}
+      required:
+        - ok
