@@ -1,15 +1,24 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import https from "https";
-import http from "http";
-import { URL } from "url";
+import axios from "axios";
 
 const BASE_URL = "https://www.sankavollerei.com/anime/winbu";
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  timeout: 20000,
+  headers: {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Referer": "https://winbu.net/",
+  },
+  decompress: true,
+});
 
 interface CacheEntry {
   data: unknown;
   expires: number;
   contentType?: string;
-  buffer?: Buffer;
+  buffer?: string;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -36,75 +45,14 @@ function setCache(key: string, entry: CacheEntry) {
 }
 
 async function fetchJSON(path: string, params?: Record<string, string | number | undefined>): Promise<unknown> {
-  const url = new URL(`${BASE_URL}${path}`);
+  const cleanParams: Record<string, string | number> = {};
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null && String(v) !== "") url.searchParams.set(k, String(v));
+      if (v !== undefined && v !== null && String(v) !== "") cleanParams[k] = v;
     }
   }
-
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: url.hostname,
-      path: url.pathname + (url.search || ""),
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-        "Referer": "https://winbu.net/",
-        "Accept-Encoding": "identity",
-      },
-      timeout: 20000,
-    };
-
-    const req = https.get(options, (res) => {
-      const chunks: Buffer[] = [];
-      res.on("data", (chunk) => chunks.push(chunk));
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString()));
-        } catch {
-          resolve(null);
-        }
-      });
-    });
-    req.on("error", reject);
-    req.on("timeout", () => { req.destroy(); reject(new Error("Timeout")); });
-  });
-}
-
-async function fetchImage(imageUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
-  return new Promise((resolve, reject) => {
-    const parsedUrl = new URL(imageUrl);
-    const protocol = parsedUrl.protocol === "https:" ? https : http;
-
-    const options = {
-      hostname: parsedUrl.hostname,
-      path: parsedUrl.pathname + (parsedUrl.search || ""),
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://winbu.net/",
-        "Accept": "image/*,*/*;q=0.8",
-      },
-      timeout: 12000,
-    };
-
-    const req = protocol.get(options, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
-        fetchImage(res.headers.location!).then(resolve).catch(reject);
-        return;
-      }
-      const chunks: Buffer[] = [];
-      res.on("data", (chunk) => chunks.push(chunk));
-      res.on("end", () => {
-        resolve({
-          buffer: Buffer.concat(chunks),
-          contentType: res.headers["content-type"] || "image/jpeg",
-        });
-      });
-    });
-    req.on("error", reject);
-    req.on("timeout", () => { req.destroy(); reject(new Error("Timeout")); });
-  });
+  const res = await api.get(path, { params: cleanParams });
+  return res.data;
 }
 
 function normalizeList(data: unknown): unknown[] {
@@ -128,6 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Methods", "GET");
 
   try {
+    // Image proxy
     if (path === "/img") {
       const { url } = query;
       if (!url) { res.status(400).send("Missing url"); return; }
@@ -136,21 +85,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (cached?.buffer) {
         res.setHeader("Content-Type", cached.contentType!);
         res.setHeader("Cache-Control", "public, max-age=86400");
-        res.send(cached.buffer);
+        res.send(Buffer.from(cached.buffer, "base64"));
         return;
       }
       try {
-        const { buffer, contentType } = await fetchImage(url);
-        setCache(cacheKey, { data: null, expires: Date.now() + TTL.image, contentType, buffer });
+        const imgRes = await axios.get(url, {
+          responseType: "arraybuffer",
+          timeout: 12000,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://winbu.net/",
+            "Accept": "image/*,*/*;q=0.8",
+          },
+        });
+        const contentType = String(imgRes.headers["content-type"] || "image/jpeg");
+        const buf = Buffer.from(imgRes.data);
+        setCache(cacheKey, { data: null, expires: Date.now() + TTL.image, contentType, buffer: buf.toString("base64") });
         res.setHeader("Content-Type", contentType);
         res.setHeader("Cache-Control", "public, max-age=86400");
-        res.send(buffer);
+        res.send(buf);
       } catch {
         res.status(404).send("Image not found");
       }
       return;
     }
 
+    // Home
     if (path === "/home") {
       const cacheKey = "home";
       const cached = getCache(cacheKey);
@@ -170,6 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Search
     if (path === "/search") {
       const cacheKey = `search:${query.q}:${query.page || 1}`;
       const cached = getCache(cacheKey);
@@ -181,6 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Genres list
     if (path === "/genres") {
       const cacheKey = "genres";
       const cached = getCache(cacheKey);
@@ -192,6 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Schedule
     if (path === "/schedule") {
       const cacheKey = `schedule:${query.day || "all"}`;
       const cached = getCache(cacheKey);
@@ -204,9 +167,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Paginated list endpoints
     const LIST_PATHS = ["/animedonghua", "/film", "/series", "/tvshow", "/others", "/ongoing", "/completed", "/populer", "/all-anime", "/update", "/latest"];
     if (LIST_PATHS.includes(path)) {
-      const cacheKey = `${path.replace("/", "")}:${query.page || 1}`;
+      const cacheKey = `${path.slice(1)}:${query.page || 1}`;
       const cached = getCache(cacheKey);
       if (cached) { res.json(cached.data); return; }
       const raw = await fetchJSON(path, { page: query.page ? Number(query.page) : 1 }) as any;
@@ -216,6 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Catalog
     if (path === "/catalog") {
       const { title, page, order, type, status } = query;
       const cacheKey = `catalog:${title}:${page || 1}:${order}:${type}:${status}`;
@@ -228,6 +193,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Genre detail
     if (pathSegments[0] === "genre" && pathSegments[1]) {
       const slug = pathSegments[1];
       const cacheKey = `genre:${slug}:${query.page || 1}`;
@@ -240,6 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Anime detail
     if (pathSegments[0] === "anime" && pathSegments[1]) {
       const slug = pathSegments[1];
       const cacheKey = `anime:${slug}`;
@@ -247,12 +214,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (cached) { res.json({ ok: true, data: cached.data }); return; }
       const raw = await fetchJSON(`/anime/${slug}`) as any;
       const d = raw?.data || {};
-      const data = { ...d, episodes: normalizeList(d.episodes), recommendations: normalizeList(d.recommendations) };
+      const data = {
+        ...d,
+        episodes: normalizeList(d.episodes).map((ep: unknown) => {
+          const e = ep as Record<string, unknown>;
+          return { ...e, slug: e.id || e.slug };
+        }),
+        recommendations: normalizeList(d.recommendations),
+      };
       setCache(cacheKey, { data, expires: Date.now() + TTL.detail });
       res.json({ ok: true, data });
       return;
     }
 
+    // Episode detail (for watch page)
     if (pathSegments[0] === "episode" && pathSegments[1]) {
       const slug = pathSegments[1];
       const cacheKey = `episode:${slug}`;
@@ -265,22 +240,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Series detail
     if (pathSegments[0] === "series" && pathSegments[1]) {
       const slug = pathSegments[1];
-      const cacheKey = `series:${slug}`;
+      const cacheKey = `series:detail:${slug}`;
       const cached = getCache(cacheKey);
       if (cached) { res.json({ ok: true, data: cached.data }); return; }
       const raw = await fetchJSON(`/series/${slug}`) as any;
       const d = raw?.data || {};
-      const data = { ...d, episodes: normalizeList(d.episodes) };
+      const data = {
+        ...d,
+        episodes: normalizeList(d.episodes).map((ep: unknown) => {
+          const e = ep as Record<string, unknown>;
+          return { ...e, slug: e.id || e.slug };
+        }),
+      };
       setCache(cacheKey, { data, expires: Date.now() + TTL.detail });
       res.json({ ok: true, data });
       return;
     }
 
+    // Film detail
     if (pathSegments[0] === "film" && pathSegments[1]) {
       const slug = pathSegments[1];
-      const cacheKey = `film:${slug}`;
+      const cacheKey = `film:detail:${slug}`;
       const cached = getCache(cacheKey);
       if (cached) { res.json({ ok: true, data: cached.data }); return; }
       const raw = await fetchJSON(`/film/${slug}`) as any;
@@ -290,6 +273,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
+    // Server/embed
     if (path === "/server") {
       const cacheKey = `server:${query.post}:${query.nume}:${query.type}`;
       const cached = getCache(cacheKey);
@@ -301,8 +285,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     res.status(404).json({ ok: false, error: "Not found" });
-  } catch (err) {
-    console.error("API error:", err);
+
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("API error:", message);
     res.status(500).json({ ok: false, error: "Internal server error" });
   }
 }
