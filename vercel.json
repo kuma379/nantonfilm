@@ -1,4 +1,5 @@
 {
+  "framework": null,
   "buildCommand": "pnpm install && pnpm --filter @workspace/api-spec run codegen && pnpm --filter @workspace/nonton-film build",
   "outputDirectory": "artifacts/nonton-film/dist/public",
   "installCommand": "pnpm install",
