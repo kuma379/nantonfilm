@@ -1,0 +1,21 @@
+{
+  "buildCommand": "pnpm install && pnpm --filter @workspace/api-spec run codegen && pnpm --filter @workspace/nonton-film build",
+  "outputDirectory": "artifacts/nonton-film/dist/public",
+  "installCommand": "pnpm install",
+  "env": {
+    "BASE_PATH": "/",
+    "NODE_ENV": "production"
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/((?!api).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "s-maxage=300, stale-while-revalidate" }
+      ]
+    }
+  ]
+}
